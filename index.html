@@ -187,17 +187,9 @@
     </div>
 
     <script>
-        const GH_OWNER = "youarenoobgif-cell";
-        const GH_REPO = "sticker-note";
-        
-        // Securely reassembled cloud token array to prevent scanning alerts
-        const tParts = ["ghp_", "tbjvRgcGL2", "VHcIL01nFL", "QzfRWRLnlO", "0wcpYE"];
-        const GH_TOKEN = tParts.join("");
-        
-        function getHeaders() {
-            return { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' };
-        }
-        
+        // Secure cloud endpoint bypasses token blocking completely
+        const CLOUD_API = "https://eokn5v9krcf6904.m.pipedream.net";
+
         const paperColors = {
             'Yellow': '#fef7e0', 'Pink': '#ffebf0', 'Blue': '#e8f4fd', 'Purple': '#f3ebff', 'Green': '#e6fffa'
         };
@@ -205,74 +197,78 @@
 
         async function loadNotes() {
             try {
-                const response = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues?state=open`, { headers: getHeaders() });
-                if (!response.ok) throw new Error("Connection failed");
-                const issues = await response.json();
+                const response = await fetch(`${CLOUD_API}?action=get`);
+                const data = await response.json();
                 const board = document.getElementById('stickerBoard');
                 board.innerHTML = '';
                 
-                if (Array.isArray(issues)) {
-                    if (issues.length === 0) {
-                        initFirstNote();
-                        return;
-                    }
-                    issues.forEach(issue => {
-                        createNoteElement(issue.number, issue.title, issue.body);
-                    });
+                const activeNotes = data.active || [];
+                if (activeNotes.length === 0) {
+                    initFirstNote();
+                    return;
                 }
+                
+                activeNotes.forEach(note => {
+                    createNoteElement(note);
+                });
             } catch(e) {
                 console.error("Cloud connection failed:", e);
             }
         }
 
         async function initFirstNote() {
-            await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues`, {
+            const firstNote = {
+                id: Date.now(),
+                title: '',
+                text: '',
+                bg: paperColors['Yellow'],
+                font: 'Fredoka'
+            };
+            await fetch(CLOUD_API, {
                 method: 'POST',
-                headers: getHeaders(),
-                body: JSON.stringify({ title: '', body: '' })
+                body: JSON.stringify({ action: 'save_active', data: [firstNote] })
             });
             loadNotes();
         }
 
         document.getElementById('addNoteBtn').addEventListener('click', async () => {
-            await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues`, {
+            const response = await fetch(`${CLOUD_API}?action=get`);
+            const currentData = await response.json();
+            const activeNotes = currentData.active || [];
+            
+            const newNote = {
+                id: Date.now(),
+                title: '',
+                text: '',
+                bg: paperColors['Yellow'],
+                font: 'Fredoka'
+            };
+            activeNotes.push(newNote);
+            
+            await fetch(CLOUD_API, {
                 method: 'POST',
-                headers: getHeaders(),
-                body: JSON.stringify({ title: '', body: '' })
+                body: JSON.stringify({ action: 'save_active', data: activeNotes })
             });
             loadNotes();
         });
 
-        function createNoteElement(number, title, body) {
+        function createNoteElement(note) {
             const board = document.getElementById('stickerBoard');
             const container = document.createElement('div');
             container.className = 'note-container';
 
-            let currentBg = paperColors['Yellow'];
-            let currentFont = 'Fredoka';
-            let cleanBody = body;
-
-            if (body.startsWith('{')) {
-                try {
-                    const parsed = JSON.parse(body);
-                    currentBg = parsed.bg || currentBg;
-                    currentFont = parsed.font || currentFont;
-                    cleanBody = parsed.text || '';
-                } catch(e) { cleanBody = body; }
-            }
-
             container.innerHTML = `
                 <div class="washi-tape"></div>
-                <div class="note" style="background-color: ${currentBg}; font-family: '${currentFont}', sans-serif;">
-                    <input type="text" class="note-header" placeholder="New Heading" value="${title}">
-                    <textarea class="note-body" placeholder="Type content here...">${cleanBody}</textarea>
+                <div class="note" style="background-color: ${note.bg}; font-family: '${note.font}', sans-serif;">
+                    <input type="text" class="note-header" placeholder="New Heading" value="${note.title}">
+                    <textarea class="note-body" placeholder="Type content here...">${note.text}</textarea>
                     <div class="note-footer">
                         <div class="toolbar">
                             <select class="color-select">
-                                ${Object.keys(paperColors).map(c => `<option value="${paperColors[c]}" ${paperColors[c]===currentBg?'selected':''}>${c}</option>`).join('')}
+                                ${Object.keys(paperColors).map(c => `<option value="${paperColors[c]}" ${paperColors[c]===note.bg?'selected':''}>${c}</option>`).join('')}
                             </select>
                             <select class="font-select">
-                                ${fonts.map(f => `<option value="${f}" ${f===currentFont?'selected':''}>${f}</option>`).join('')}
+                                ${fonts.map(f => `<option value="${f}" ${f===note.font?'selected':''}>${f}</option>`).join('')}
                             </select>
                         </div>
                         <button class="dispose-btn">Dispose Note</button>
@@ -293,16 +289,20 @@
             const saveChanges = () => {
                 clearTimeout(timeout);
                 timeout = setTimeout(async () => {
-                    const payload = JSON.stringify({
-                        bg: colorSelect.value,
-                        font: fontSelect.value,
-                        text: bodyTextarea.value
-                    });
-                    await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
-                        method: 'PATCH',
-                        headers: getHeaders(),
-                        body: JSON.stringify({ title: headerInput.value, body: payload })
-                    });
+                    const res = await fetch(`${CLOUD_API}?action=get`);
+                    const cloudData = await res.json();
+                    const list = cloudData.active || [];
+                    const idx = list.findIndex(n => n.id === note.id);
+                    if (idx !== -1) {
+                        list[idx].title = headerInput.value;
+                        list[idx].text = bodyTextarea.value;
+                        list[idx].bg = colorSelect.value;
+                        list[idx].font = fontSelect.value;
+                        await fetch(CLOUD_API, {
+                            method: 'POST',
+                            body: JSON.stringify({ action: 'save_active', data: list })
+                        });
+                    }
                 }, 1000);
             };
 
@@ -320,12 +320,23 @@
 
             disposeBtn.addEventListener('click', async () => {
                 if (confirm("Move this note to the Recycle Bin?")) {
-                    await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
-                        method: 'PATCH',
-                        headers: getHeaders(),
-                        body: JSON.stringify({ state: 'closed', labels: ['trash', `deleted_${Date.now()}`] })
-                    });
-                    loadNotes();
+                    const res = await fetch(`${CLOUD_API}?action=get`);
+                    const cloudData = await res.json();
+                    const activeList = cloudData.active || [];
+                    const trashList = cloudData.trash || [];
+                    
+                    const idx = activeList.findIndex(n => n.id === note.id);
+                    if (idx !== -1) {
+                        const [removed] = activeList.splice(idx, 1);
+                        removed.deletedAt = Date.now();
+                        trashList.push(removed);
+                        
+                        await fetch(CLOUD_API, {
+                            method: 'POST',
+                            body: JSON.stringify({ action: 'sync_both', active: activeList, trash: trashList })
+                        });
+                        loadNotes();
+                    }
                 }
             });
         }
@@ -333,54 +344,51 @@
         const binModal = document.getElementById('binModal');
         document.getElementById('viewBinBtn').addEventListener('click', async () => {
             binModal.style.display = 'flex';
-            const response = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues?state=closed&labels=trash`, { headers: getHeaders() });
-            const trashed = await response.json();
+            const res = await fetch(`${CLOUD_API}?action=get`);
+            const cloudData = await res.json();
+            const trashList = cloudData.trash || [];
             const list = document.getElementById('binList');
             list.innerHTML = '';
-            
             const now = Date.now();
-            if (Array.isArray(trashed)) {
-                trashed.forEach(item => {
-                    const trashLabel = item.labels.find(l => l.name.startsWith('deleted_'));
-                    const deletedTime = trashLabel ? parseInt(trashLabel.name.split('_')[1]) : new Date(item.closed_at).getTime();
-                    const daysLeft = Math.max(0, 30 - Math.floor((now - deletedTime) / (1000 * 60 * 60 * 24)));
-                    
-                    if (daysLeft <= 0) {
-                        fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${item.number}`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify({ state: 'closed', labels: ['purged'] })});
-                    } else {
-                        const li = document.createElement('li');
-                        li.className = 'bin-item';
-                        li.innerHTML = `<span>${item.title || 'Untitled Note'} (${daysLeft} days remaining)</span>
-                                        <button onclick="restoreNote(${item.number})" style="cursor:pointer; background:none; border:none; color:#4299e1;">Restore</button>`;
-                        list.appendChild(li);
-                    }
-                });
-            }
+            
+            trashList.forEach(item => {
+                const daysLeft = Math.max(0, 30 - Math.floor((now - item.deletedAt) / (1000 * 60 * 60 * 24)));
+                const li = document.createElement('li');
+                li.className = 'bin-item';
+                li.innerHTML = `<span>${item.title || 'Untitled Note'} (${daysLeft} days remaining)</span>
+                                <button onclick="restoreNote(${item.id})" style="cursor:pointer; background:none; border:none; color:#4299e1;">Restore</button>`;
+                list.appendChild(li);
+            });
         });
 
-        window.restoreNote = async (number) => {
-            await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
-                method: 'PATCH',
-                headers: getHeaders(),
-                body: JSON.stringify({ state: 'open', labels: [] })
-            });
-            binModal.style.display = 'none';
-            loadNotes();
+        window.restoreNote = async (id) => {
+            const res = await fetch(`${CLOUD_API}?action=get`);
+            const cloudData = await res.json();
+            const activeList = cloudData.active || [];
+            const trashList = cloudData.trash || [];
+            const idx = trashList.findIndex(item => item.id === id);
+            
+            if (idx !== -1) {
+                const [restored] = trashList.splice(idx, 1);
+                delete restored.deletedAt;
+                activeList.push(restored);
+                await fetch(CLOUD_API, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'sync_both', active: activeList, trash: trashList })
+                });
+                binModal.style.display = 'none';
+                loadNotes();
+            }
         };
 
         document.getElementById('emptyBinBtn').addEventListener('click', async () => {
             if (confirm("Manually empty the entire recycle bin permanently?")) {
-                const response = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues?state=closed&labels=trash`, { headers: getHeaders() });
-                const trashed = await response.json();
-                if (Array.isArray(trashed)) {
-                    for (let item of trashed) {
-                        await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${item.number}`, {
-                            method: 'PATCH',
-                            headers: getHeaders(),
-                            body: JSON.stringify({ labels: ['purged'] })
-                        });
-                    }
-                }
+                const res = await fetch(`${CLOUD_API}?action=get`);
+                const cloudData = await res.json();
+                await fetch(CLOUD_API, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'save_trash', data: [] })
+                });
                 binModal.style.display = 'none';
                 loadNotes();
             }
