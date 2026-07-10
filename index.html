@@ -192,7 +192,8 @@
         const SUPABASE_URL = "https://twbnbulzcisxlwysoahx.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_rVBizCc7xFnKXxkQTxTB9g_EwR6jtNk";
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Initialized cleanly after script bundle loading configurations complete
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         const paperColors = {
             'Yellow': '#fef7e0', 'Pink': '#ffebf0', 'Blue': '#e8f4fd', 'Purple': '#f3ebff', 'Green': '#e6fffa'
@@ -201,11 +202,10 @@
 
         async function loadNotes() {
             try {
-                // Clear items sitting in trash older than 30 days
                 const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-                await supabase.from('notes').delete().eq('is_trash', true).lt('deleted_at', thirtyDaysAgo);
+                await supabaseClient.from('notes').delete().eq('is_trash', true).lt('deleted_at', thirtyDaysAgo);
 
-                const { data: notes, error } = await supabase.from('notes').select('*').eq('is_trash', false).order('created_at', { ascending: true });
+                const { data: notes, error } = await supabaseClient.from('notes').select('*').eq('is_trash', false).order('created_at', { ascending: true });
                 if (error) throw error;
 
                 const board = document.getElementById('stickerBoard');
@@ -225,12 +225,12 @@
         }
 
         async function initFirstNote() {
-            await supabase.from('notes').insert([{ title: '', text: '', bg: paperColors['Yellow'], font: 'Fredoka', is_trash: false }]);
+            await supabaseClient.from('notes').insert([{ title: '', text: '', bg: paperColors['Yellow'], font: 'Fredoka', is_trash: false }]);
             loadNotes();
         }
 
         document.getElementById('addNoteBtn').addEventListener('click', async () => {
-            await supabase.from('notes').insert([{ title: '', text: '', bg: paperColors['Yellow'], font: 'Fredoka', is_trash: false }]);
+            await supabaseClient.from('notes').insert([{ title: '', text: '', bg: paperColors['Yellow'], font: 'Fredoka', is_trash: false }]);
             loadNotes();
         });
 
@@ -271,7 +271,7 @@
             const saveChanges = () => {
                 clearTimeout(timeout);
                 timeout = setTimeout(async () => {
-                    await supabase.from('notes').update({
+                    await supabaseClient.from('notes').update({
                         title: headerInput.value,
                         text: bodyTextarea.value,
                         bg: colorSelect.value,
@@ -294,7 +294,7 @@
 
             disposeBtn.addEventListener('click', async () => {
                 if (confirm("Move this note to the Recycle Bin?")) {
-                    await supabase.from('notes').update({ is_trash: true, deleted_at: new Date().toISOString() }).eq('id', note.id);
+                    await supabaseClient.from('notes').update({ is_trash: true, deleted_at: new Date().toISOString() }).eq('id', note.id);
                     loadNotes();
                 }
             });
@@ -303,7 +303,7 @@
         const binModal = document.getElementById('binModal');
         document.getElementById('viewBinBtn').addEventListener('click', async () => {
             binModal.style.display = 'flex';
-            const { data: trashList } = await supabase.from('notes').select('*').eq('is_trash', true);
+            const { data: trashList } = await supabaseClient.from('notes').select('*').eq('is_trash', true);
             const list = document.getElementById('binList');
             list.innerHTML = '';
             const now = Date.now();
@@ -322,14 +322,14 @@
         });
 
         window.restoreNote = async (id) => {
-            await supabase.from('notes').update({ is_trash: false, deleted_at: null }).eq('id', id);
+            await supabaseClient.from('notes').update({ is_trash: false, deleted_at: null }).eq('id', id);
             binModal.style.display = 'none';
             loadNotes();
         };
 
         document.getElementById('emptyBinBtn').addEventListener('click', async () => {
             if (confirm("Manually empty the entire recycle bin permanently?")) {
-                await supabase.from('notes').delete().eq('is_trash', true);
+                await supabaseClient.from('notes').delete().eq('is_trash', true);
                 binModal.style.display = 'none';
                 loadNotes();
             }
