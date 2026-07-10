@@ -84,8 +84,8 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         .note:hover {
-            transform: scale(1.02) rotate(1deg);
-            box-shadow: 8px 12px 20px rgba(0, 0, 0, 0.1);
+            transform: scale(1.03) rotate(0.5deg);
+            box-shadow: 8px 12px 20px rgba(0, 0, 0, 0.08);
         }
         .note-header {
             border: none;
@@ -109,7 +109,6 @@
             outline: none;
             background: transparent;
         }
-        /* Shadow effect for placeholders */
         .note-header::placeholder, .note-body::placeholder {
             color: #a0aec0;
             opacity: 0.6;
@@ -141,7 +140,6 @@
             font-weight: 600;
         }
         
-        /* Modal for Trash Bin */
         .modal {
             display: none;
             position: fixed;
@@ -216,7 +214,6 @@
             board.innerHTML = '';
             
             if (Array.isArray(issues)) {
-                // If there are zero open items in your database, auto-initialize just one blank placeholder card
                 if (issues.length === 0) {
                     initFirstNote();
                     return;
@@ -250,7 +247,6 @@
             const container = document.createElement('div');
             container.className = 'note-container';
 
-            // Parse embedded styles or use defaults
             let currentBg = paperColors['Yellow'];
             let currentFont = 'Fredoka';
             let cleanBody = body;
@@ -333,7 +329,6 @@
             });
         }
 
-        // Recycle Bin Logic & 30-Day Expiry Check
         const binModal = document.getElementById('binModal');
         document.getElementById('viewBinBtn').addEventListener('click', async () => {
             binModal.style.display = 'flex';
@@ -350,7 +345,6 @@
                     const daysLeft = Math.max(0, 30 - Math.floor((now - deletedTime) / (1000 * 60 * 60 * 24)));
                     
                     if (daysLeft <= 0) {
-                        // Background trigger to permanently delete item once expired past 30 days
                         fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${item.number}`, { method: 'PATCH', headers, body: JSON.stringify({ state: 'closed', labels: ['purged'] })});
                     } else {
                         const li = document.createElement('li');
