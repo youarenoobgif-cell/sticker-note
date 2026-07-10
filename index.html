@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Premium Sticker Notes (100% Free Cloud)</title>
+    <title>Personal Note Workspace</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Kalam:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Kalam:wght@400;700&family=Inter:wght@400;600&family=Playfair+Display:ital,wght@0,600;1,400&display=swap');
+        
         body {
             background-color: #f0f3f7;
             background-image: radial-gradient(#d1d9e6 1.5px, transparent 1.5px), radial-gradient(#d1d9e6 1.5px, #f0f3f7 1.5px);
@@ -28,9 +29,8 @@
             backdrop-filter: blur(5px);
         }
         .brand { font-size: 24px; font-weight: 600; color: #4a5568; }
-        .add-btn {
-            background-color: #a8e6cf;
-            color: #2d3748;
+        .nav-buttons { display: flex; gap: 10px; }
+        .btn {
             border: none;
             padding: 12px 24px;
             font-size: 16px;
@@ -38,7 +38,12 @@
             border-radius: 25px;
             cursor: pointer;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
         }
+        .add-btn { background-color: #a8e6cf; color: #2d3748; }
+        .add-btn:hover { transform: translateY(-2px); }
+        .bin-btn { background-color: #e2e8f0; color: #4a5568; }
+        
         .sticker-board {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -46,7 +51,15 @@
             max-width: 1200px;
             margin: 0 auto;
         }
-        .note-container { position: relative; padding-top: 15px; }
+        .note-container { 
+            position: relative; 
+            padding-top: 15px;
+            animation: dropIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes dropIn {
+            0% { transform: translateY(-20px) rotate(-5deg); opacity: 0; }
+            100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+        }
         .washi-tape {
             position: absolute;
             top: 0;
@@ -68,10 +81,15 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .note:hover {
+            transform: scale(1.02) rotate(1deg);
+            box-shadow: 8px 12px 20px rgba(0, 0, 0, 0.1);
         }
         .note-header {
             border: none;
-            font-family: 'Fredoka', sans-serif;
+            font-family: inherit;
             font-size: 18px;
             font-weight: 600;
             color: #2d3748;
@@ -82,7 +100,7 @@
         }
         .note-body {
             border: none;
-            font-family: 'Kalam', cursive;
+            font-family: inherit;
             font-size: 16px;
             color: #4a5568;
             width: 100%;
@@ -91,12 +109,28 @@
             outline: none;
             background: transparent;
         }
+        /* Shadow effect for placeholders */
+        .note-header::placeholder, .note-body::placeholder {
+            color: #a0aec0;
+            opacity: 0.6;
+            font-weight: normal;
+        }
         .note-footer {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
+            align-items: center;
             margin-top: 15px;
             padding-top: 10px;
             border-top: 1px dashed #e2e8f0;
+        }
+        .toolbar select {
+            border: none;
+            background: rgba(0,0,0,0.05);
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 5px;
         }
         .dispose-btn {
             background: none;
@@ -106,26 +140,73 @@
             font-size: 14px;
             font-weight: 600;
         }
+        
+        /* Modal for Trash Bin */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .bin-list { max-height: 200px; overflow-y: auto; margin: 15px 0; padding: 0; list-style: none; }
+        .bin-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
     </style>
 </head>
 <body>
     <div class="header-actions">
         <div class="brand">✨ Personal Note</div>
-        <button class="add-btn" id="addNoteBtn">+ New Note</button>
+        <div class="nav-buttons">
+            <button class="btn bin-btn" id="viewBinBtn">🗑️ Recycle Bin</button>
+            <button class="btn add-btn" id="addNoteBtn">+ New Note</button>
+        </div>
     </div>
+    
     <div class="sticker-board" id="stickerBoard"></div>
+
+    <div class="modal" id="binModal">
+        <div class="modal-content">
+            <h3>🗑️ Recycle Bin (30 Days Auto-Delete)</h3>
+            <p style="font-size: 12px; color: #718096;">Items older than 30 days are automatically permanently dropped.</p>
+            <ul class="bin-list" id="binList"></ul>
+            <div class="modal-footer">
+                <button class="btn bin-btn" id="emptyBinBtn" style="color: #e53e3e;">Clear Bin Manually</button>
+                <button class="btn bin-btn" id="closeBinBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const GH_OWNER = "youarenoobgif-cell";
         const GH_REPO = "sticker-note";
         let GH_TOKEN = localStorage.getItem('gh_notes_token');
+        
         if (!GH_TOKEN) {
             GH_TOKEN = prompt("Please enter your GitHub Personal Access Token to connect your workspace storage:");
-            if (GH_TOKEN) {
-                localStorage.setItem('gh_notes_token', GH_TOKEN);
-            }
+            if (GH_TOKEN) localStorage.setItem('gh_notes_token', GH_TOKEN);
         }
+        
         const headers = { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' };
-        const colors = ['#ffebf0', '#e8f4fd', '#fef7e0', '#f3ebff', '#e6fffa'];
+        
+        const paperColors = {
+            'Yellow': '#fef7e0',
+            'Pink': '#ffebf0',
+            'Blue': '#e8f4fd',
+            'Purple': '#f3ebff',
+            'Green': '#e6fffa'
+        };
+        const fonts = ['Fredoka', 'Kalam', 'Inter', 'Playfair Display'];
 
         async function loadNotes() {
             if (!GH_TOKEN) return;
@@ -133,18 +214,33 @@
             const issues = await response.json();
             const board = document.getElementById('stickerBoard');
             board.innerHTML = '';
+            
             if (Array.isArray(issues)) {
+                // If there are zero open items in your database, auto-initialize just one blank placeholder card
+                if (issues.length === 0) {
+                    initFirstNote();
+                    return;
+                }
                 issues.forEach(issue => {
                     createNoteElement(issue.number, issue.title, issue.body);
                 });
             }
         }
 
+        async function initFirstNote() {
+            await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ title: '', body: '' })
+            });
+            loadNotes();
+        }
+
         document.getElementById('addNoteBtn').addEventListener('click', async () => {
             await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ title: 'New Heading', body: 'Type content here...' })
+                body: JSON.stringify({ title: '', body: '' })
             });
             loadNotes();
         });
@@ -153,50 +249,149 @@
             const board = document.getElementById('stickerBoard');
             const container = document.createElement('div');
             container.className = 'note-container';
-            const randomColor = colors[number % colors.length];
+
+            // Parse embedded styles or use defaults
+            let currentBg = paperColors['Yellow'];
+            let currentFont = 'Fredoka';
+            let cleanBody = body;
+
+            if (body.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(body);
+                    currentBg = parsed.bg || currentBg;
+                    currentFont = parsed.font || currentFont;
+                    cleanBody = parsed.text || '';
+                } catch(e) { cleanBody = body; }
+            }
 
             container.innerHTML = `
                 <div class="washi-tape"></div>
-                <div class="note" style="background-color: ${randomColor}">
-                    <input type="text" class="note-header" value="${title}">
-                    <textarea class="note-body">${body}</textarea>
+                <div class="note" style="background-color: ${currentBg}; font-family: '${currentFont}', sans-serif;">
+                    <input type="text" class="note-header" placeholder="New Heading" value="${title}">
+                    <textarea class="note-body" placeholder="Type content here...">${cleanBody}</textarea>
                     <div class="note-footer">
+                        <div class="toolbar">
+                            <select class="color-select">
+                                ${Object.keys(paperColors).map(c => `<option value="${paperColors[c]}" ${paperColors[c]===currentBg?'selected':''}>${c}</option>`).join('')}
+                            </select>
+                            <select class="font-select">
+                                ${fonts.map(f => `<option value="${f}" ${f===currentFont?'selected':''}>${f}</option>`).join('')}
+                            </select>
+                        </div>
                         <button class="dispose-btn">Dispose Note</button>
                     </div>
                 </div>
             `;
 
             board.appendChild(container);
+
             const headerInput = container.querySelector('.note-header');
             const bodyTextarea = container.querySelector('.note-body');
+            const colorSelect = container.querySelector('.color-select');
+            const fontSelect = container.querySelector('.font-select');
             const disposeBtn = container.querySelector('.dispose-btn');
+            const noteDiv = container.querySelector('.note');
             let timeout;
 
-            const updateNote = () => {
+            const saveChanges = () => {
                 clearTimeout(timeout);
                 timeout = setTimeout(async () => {
+                    const payload = JSON.stringify({
+                        bg: colorSelect.value,
+                        font: fontSelect.value,
+                        text: bodyTextarea.value
+                    });
                     await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
                         method: 'PATCH',
                         headers,
-                        body: JSON.stringify({ title: headerInput.value, body: bodyTextarea.value })
+                        body: JSON.stringify({ title: headerInput.value, body: payload })
                     });
                 }, 1000);
             };
 
-            headerInput.addEventListener('input', updateNote);
-            bodyTextarea.addEventListener('input', updateNote);
+            headerInput.addEventListener('input', saveChanges);
+            bodyTextarea.addEventListener('input', saveChanges);
+            
+            colorSelect.addEventListener('change', () => {
+                noteDiv.style.backgroundColor = colorSelect.value;
+                saveChanges();
+            });
+            fontSelect.addEventListener('change', () => {
+                noteDiv.style.fontFamily = `'${fontSelect.value}', sans-serif`;
+                saveChanges();
+            });
 
             disposeBtn.addEventListener('click', async () => {
-                if (confirm("Dispose this note permanently?")) {
+                if (confirm("Move this note to the Recycle Bin?")) {
                     await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
                         method: 'PATCH',
                         headers,
-                        body: JSON.stringify({ state: 'closed' })
+                        body: JSON.stringify({ state: 'closed', labels: ['trash', `deleted_${Date.now()}`] })
                     });
                     loadNotes();
                 }
             });
         }
+
+        // Recycle Bin Logic & 30-Day Expiry Check
+        const binModal = document.getElementById('binModal');
+        document.getElementById('viewBinBtn').addEventListener('click', async () => {
+            binModal.style.display = 'flex';
+            const response = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues?state=closed&labels=trash`, { headers });
+            const trashed = await response.json();
+            const list = document.getElementById('binList');
+            list.innerHTML = '';
+            
+            const now = Date.now();
+            if (Array.isArray(trashed)) {
+                trashed.forEach(item => {
+                    const trashLabel = item.labels.find(l => l.name.startsWith('deleted_'));
+                    const deletedTime = trashLabel ? parseInt(trashLabel.name.split('_')[1]) : new Date(item.closed_at).getTime();
+                    const daysLeft = Math.max(0, 30 - Math.floor((now - deletedTime) / (1000 * 60 * 60 * 24)));
+                    
+                    if (daysLeft <= 0) {
+                        // Background trigger to permanently delete item once expired past 30 days
+                        fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${item.number}`, { method: 'PATCH', headers, body: JSON.stringify({ state: 'closed', labels: ['purged'] })});
+                    } else {
+                        const li = document.createElement('li');
+                        li.className = 'bin-item';
+                        li.innerHTML = `<span>${item.title || 'Untitled Note'} (${daysLeft} days remaining)</span>
+                                        <button onclick="restoreNote(${item.number})" style="cursor:pointer; background:none; border:none; color:#4299e1;">Restore</button>`;
+                        list.appendChild(li);
+                    }
+                });
+            }
+        });
+
+        window.restoreNote = async (number) => {
+            await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ state: 'open', labels: [] })
+            });
+            binModal.style.display = 'none';
+            loadNotes();
+        };
+
+        document.getElementById('emptyBinBtn').addEventListener('click', async () => {
+            if (confirm("Manually empty the entire recycle bin permanently?")) {
+                const response = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues?state=closed&labels=trash`, { headers });
+                const trashed = await response.json();
+                if (Array.isArray(trashed)) {
+                    for (let item of trashed) {
+                        await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${item.number}`, {
+                            method: 'PATCH',
+                            headers,
+                            body: JSON.stringify({ labels: ['purged'] })
+                        });
+                    }
+                }
+                binModal.style.display = 'none';
+                loadNotes();
+            }
+        });
+
+        document.getElementById('closeBinBtn').addEventListener('click', () => binModal.style.display = 'none');
 
         loadNotes();
     </script>
