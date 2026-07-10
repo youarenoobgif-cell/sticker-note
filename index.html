@@ -162,7 +162,6 @@
         .bin-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
     </style>
-    <script src="https://unpkg.com/urlpattern-polyfill"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -193,9 +192,7 @@
         const SUPABASE_URL = "https://twbnbulzcisxlwysoahx.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_rVBizCc7xFnKXxkQTxTB9g_EwR6jtNk";
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            auth: { persistSession: false }
-        });
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         const paperColors = {
             'Yellow': '#fef7e0', 'Pink': '#ffebf0', 'Blue': '#e8f4fd', 'Purple': '#f3ebff', 'Green': '#e6fffa'
@@ -204,6 +201,7 @@
 
         async function loadNotes() {
             try {
+                // Clear items sitting in trash older than 30 days
                 const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
                 await supabase.from('notes').delete().eq('is_trash', true).lt('deleted_at', thirtyDaysAgo);
 
