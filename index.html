@@ -6,7 +6,6 @@
     <title>Premium Sticker Notes (100% Free Cloud)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Kalam:wght@400;700&display=swap');
-
         body {
             background-color: #f0f3f7;
             background-image: radial-gradient(#d1d9e6 1.5px, transparent 1.5px), radial-gradient(#d1d9e6 1.5px, #f0f3f7 1.5px);
@@ -16,7 +15,6 @@
             margin: 0;
             padding: 20px;
         }
-
         .header-actions {
             display: flex;
             justify-content: space-between;
@@ -29,9 +27,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
             backdrop-filter: blur(5px);
         }
-
         .brand { font-size: 24px; font-weight: 600; color: #4a5568; }
-        
         .add-btn {
             background-color: #a8e6cf;
             color: #2d3748;
@@ -43,7 +39,6 @@
             cursor: pointer;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
-
         .sticker-board {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -51,19 +46,19 @@
             max-width: 1200px;
             margin: 0 auto;
         }
-
         .note-container { position: relative; padding-top: 15px; }
-
         .washi-tape {
             position: absolute;
-            top: 0; left: 50%; transform: translateX(-50%) rotate(-1deg);
-            width: 100px; height: 25px;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) rotate(-1deg);
+            width: 100px;
+            height: 25px;
             background-color: rgba(255, 211, 182, 0.7);
-            border-left: 3px dashed rgba(0,0,0,0.08);
-            border-right: 3px dashed rgba(0,0,0,0.08);
+            border-left: 3px dashed rgba(0, 0, 0, 0.08);
+            border-right: 3px dashed rgba(0, 0, 0, 0.08);
             z-index: 10;
         }
-
         .note {
             background-color: #fff;
             padding: 30px 20px 20px 20px;
@@ -74,7 +69,6 @@
             flex-direction: column;
             justify-content: space-between;
         }
-
         .note-header {
             border: none;
             font-family: 'Fredoka', sans-serif;
@@ -86,7 +80,6 @@
             margin-bottom: 10px;
             background: transparent;
         }
-
         .note-body {
             border: none;
             font-family: 'Kalam', cursive;
@@ -98,7 +91,6 @@
             outline: none;
             background: transparent;
         }
-
         .note-footer {
             display: flex;
             justify-content: flex-end;
@@ -106,7 +98,6 @@
             padding-top: 10px;
             border-top: 1px dashed #e2e8f0;
         }
-
         .dispose-btn {
             background: none;
             border: none;
@@ -118,34 +109,22 @@
     </style>
 </head>
 <body>
-
     <div class="header-actions">
-        <div class="brand">✨ Free Cloud Workspace</div>
-        <button class="add-btn" id="addNoteBtn">+ New Custom Note</button>
+        <div class="brand">✨ Personal Note</div>
+        <button class="add-btn" id="addNoteBtn">+ New Note</button>
     </div>
-
     <div class="sticker-board" id="stickerBoard"></div>
-
     <script>
-        // Safe Setup: No hardcoded secret keys to trigger security blocks
         const GH_OWNER = "youarenoobgif-cell";
         const GH_REPO = "sticker-note";
-
-        // Retrieves the token securely from your browser cache
         let GH_TOKEN = localStorage.getItem('gh_notes_token');
-        
         if (!GH_TOKEN) {
             GH_TOKEN = prompt("Please enter your GitHub Personal Access Token to connect your workspace storage:");
             if (GH_TOKEN) {
                 localStorage.setItem('gh_notes_token', GH_TOKEN);
             }
         }
-
-        const headers = {
-            'Authorization': `token ${GH_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json'
-        };
-
+        const headers = { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' };
         const colors = ['#ffebf0', '#e8f4fd', '#fef7e0', '#f3ebff', '#e6fffa'];
 
         async function loadNotes() {
@@ -154,8 +133,7 @@
             const issues = await response.json();
             const board = document.getElementById('stickerBoard');
             board.innerHTML = '';
-            
-            if(Array.isArray(issues)) {
+            if (Array.isArray(issues)) {
                 issues.forEach(issue => {
                     createNoteElement(issue.number, issue.title, issue.body);
                 });
@@ -175,7 +153,6 @@
             const board = document.getElementById('stickerBoard');
             const container = document.createElement('div');
             container.className = 'note-container';
-            
             const randomColor = colors[number % colors.length];
 
             container.innerHTML = `
@@ -190,12 +167,11 @@
             `;
 
             board.appendChild(container);
-
             const headerInput = container.querySelector('.note-header');
             const bodyTextarea = container.querySelector('.note-body');
             const disposeBtn = container.querySelector('.dispose-btn');
-
             let timeout;
+
             const updateNote = () => {
                 clearTimeout(timeout);
                 timeout = setTimeout(async () => {
@@ -211,7 +187,7 @@
             bodyTextarea.addEventListener('input', updateNote);
 
             disposeBtn.addEventListener('click', async () => {
-                if(confirm("Dispose this note permanently?")) {
+                if (confirm("Dispose this note permanently?")) {
                     await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/issues/${number}`, {
                         method: 'PATCH',
                         headers,
