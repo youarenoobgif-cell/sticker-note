@@ -161,6 +161,7 @@
         .bin-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div id="appContainer">
@@ -187,9 +188,12 @@
     </div>
 
     <script>
-        // Secure cloud endpoint bypasses token blocking completely
-        const CLOUD_API = "https://eokn5v9krcf6904.m.pipedream.net";
-
+        // AUTOMATED CLOUD CREDENTIALS
+        const SUPABASE_URL = "https://twbnbulzcisxlwysoahx.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_rVBizCc7xFnKXxkQTxTB9g_EwR6jtNk";
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
         const paperColors = {
             'Yellow': '#fef7e0', 'Pink': '#ffebf0', 'Blue': '#e8f4fd', 'Purple': '#f3ebff', 'Green': '#e6fffa'
         };
@@ -197,58 +201,36 @@
 
         async function loadNotes() {
             try {
-                const response = await fetch(`${CLOUD_API}?action=get`);
-                const data = await response.json();
+                // Clear out data items sitting in trash older than 30 days
+                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+                await supabase.from('notes').delete().eq('is_trash', true).lt('deleted_at', thirtyDaysAgo);
+
+                const { data: notes, error } = await supabase.from('notes').select('*').eq('is_trash', false).order('created_at', { ascending: true });
+                if (error) throw error;
+
                 const board = document.getElementById('stickerBoard');
                 board.innerHTML = '';
                 
-                const activeNotes = data.active || [];
-                if (activeNotes.length === 0) {
+                if (notes.length === 0) {
                     initFirstNote();
                     return;
                 }
                 
-                activeNotes.forEach(note => {
+                notes.forEach(note => {
                     createNoteElement(note);
                 });
             } catch(e) {
-                console.error("Cloud connection failed:", e);
+                console.error("Cloud configuration syncing error:", e);
             }
         }
 
         async function initFirstNote() {
-            const firstNote = {
-                id: Date.now(),
-                title: '',
-                text: '',
-                bg: paperColors['Yellow'],
-                font: 'Fredoka'
-            };
-            await fetch(CLOUD_API, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'save_active', data: [firstNote] })
-            });
+            await supabase.from('notes').insert([{ title: '', text: '', bg: paperColors['Yellow'], font: 'Fredoka', is_trash: false }]);
             loadNotes();
         }
 
         document.getElementById('addNoteBtn').addEventListener('click', async () => {
-            const response = await fetch(`${CLOUD_API}?action=get`);
-            const currentData = await response.json();
-            const activeNotes = currentData.active || [];
-            
-            const newNote = {
-                id: Date.now(),
-                title: '',
-                text: '',
-                bg: paperColors['Yellow'],
-                font: 'Fredoka'
-            };
-            activeNotes.push(newNote);
-            
-            await fetch(CLOUD_API, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'save_active', data: activeNotes })
-            });
+            await supabase.from('notes').insert([{ title: '', text: '', bg: paperColors['Yellow'], font: 'Fredoka', is_trash: false }]);
             loadNotes();
         });
 
@@ -260,8 +242,8 @@
             container.innerHTML = `
                 <div class="washi-tape"></div>
                 <div class="note" style="background-color: ${note.bg}; font-family: '${note.font}', sans-serif;">
-                    <input type="text" class="note-header" placeholder="New Heading" value="${note.title}">
-                    <textarea class="note-body" placeholder="Type content here...">${note.text}</textarea>
+                    <input type="text" class="note-header" placeholder="New Heading" value="${note.title || ''}">
+                    <textarea class="note-body" placeholder="Type content here...">${note.text || ''}</textarea>
                     <div class="note-footer">
                         <div class="toolbar">
                             <select class="color-select">
@@ -289,21 +271,13 @@
             const saveChanges = () => {
                 clearTimeout(timeout);
                 timeout = setTimeout(async () => {
-                    const res = await fetch(`${CLOUD_API}?action=get`);
-                    const cloudData = await res.json();
-                    const list = cloudData.active || [];
-                    const idx = list.findIndex(n => n.id === note.id);
-                    if (idx !== -1) {
-                        list[idx].title = headerInput.value;
-                        list[idx].text = bodyTextarea.value;
-                        list[idx].bg = colorSelect.value;
-                        list[idx].font = fontSelect.value;
-                        await fetch(CLOUD_API, {
-                            method: 'POST',
-                            body: JSON.stringify({ action: 'save_active', data: list })
-                        });
-                    }
-                }, 1000);
+                    await supabase.from('notes').update({
+                        title: headerInput.value,
+                        text: bodyTextarea.value,
+                        bg: colorSelect.value,
+                        font: fontSelect.value
+                    }).eq('id', note.id);
+                }, 800);
             };
 
             headerInput.addEventListener('input', saveChanges);
@@ -320,23 +294,8 @@
 
             disposeBtn.addEventListener('click', async () => {
                 if (confirm("Move this note to the Recycle Bin?")) {
-                    const res = await fetch(`${CLOUD_API}?action=get`);
-                    const cloudData = await res.json();
-                    const activeList = cloudData.active || [];
-                    const trashList = cloudData.trash || [];
-                    
-                    const idx = activeList.findIndex(n => n.id === note.id);
-                    if (idx !== -1) {
-                        const [removed] = activeList.splice(idx, 1);
-                        removed.deletedAt = Date.now();
-                        trashList.push(removed);
-                        
-                        await fetch(CLOUD_API, {
-                            method: 'POST',
-                            body: JSON.stringify({ action: 'sync_both', active: activeList, trash: trashList })
-                        });
-                        loadNotes();
-                    }
+                    await supabase.from('notes').update({ is_trash: true, deleted_at: new Date().toISOString() }).eq('id', note.id);
+                    loadNotes();
                 }
             });
         }
@@ -344,51 +303,33 @@
         const binModal = document.getElementById('binModal');
         document.getElementById('viewBinBtn').addEventListener('click', async () => {
             binModal.style.display = 'flex';
-            const res = await fetch(`${CLOUD_API}?action=get`);
-            const cloudData = await res.json();
-            const trashList = cloudData.trash || [];
+            const { data: trashList } = await supabase.from('notes').select('*').eq('is_trash', true);
             const list = document.getElementById('binList');
             list.innerHTML = '';
             const now = Date.now();
             
-            trashList.forEach(item => {
-                const daysLeft = Math.max(0, 30 - Math.floor((now - item.deletedAt) / (1000 * 60 * 60 * 24)));
-                const li = document.createElement('li');
-                li.className = 'bin-item';
-                li.innerHTML = `<span>${item.title || 'Untitled Note'} (${daysLeft} days remaining)</span>
-                                <button onclick="restoreNote(${item.id})" style="cursor:pointer; background:none; border:none; color:#4299e1;">Restore</button>`;
-                list.appendChild(li);
-            });
+            if (trashList) {
+                trashList.forEach(item => {
+                    const deletedTime = new Date(item.deleted_at).getTime();
+                    const daysLeft = Math.max(0, 30 - Math.floor((now - deletedTime) / (1000 * 60 * 60 * 24)));
+                    const li = document.createElement('li');
+                    li.className = 'bin-item';
+                    li.innerHTML = `<span>${item.title || 'Untitled Note'} (${daysLeft} days remaining)</span>
+                                    <button onclick="restoreNote(${item.id})" style="cursor:pointer; background:none; border:none; color:#4299e1;">Restore</button>`;
+                    list.appendChild(li);
+                });
+            }
         });
 
         window.restoreNote = async (id) => {
-            const res = await fetch(`${CLOUD_API}?action=get`);
-            const cloudData = await res.json();
-            const activeList = cloudData.active || [];
-            const trashList = cloudData.trash || [];
-            const idx = trashList.findIndex(item => item.id === id);
-            
-            if (idx !== -1) {
-                const [restored] = trashList.splice(idx, 1);
-                delete restored.deletedAt;
-                activeList.push(restored);
-                await fetch(CLOUD_API, {
-                    method: 'POST',
-                    body: JSON.stringify({ action: 'sync_both', active: activeList, trash: trashList })
-                });
-                binModal.style.display = 'none';
-                loadNotes();
-            }
+            await supabase.from('notes').update({ is_trash: false, deleted_at: null }).eq('id', id);
+            binModal.style.display = 'none';
+            loadNotes();
         };
 
         document.getElementById('emptyBinBtn').addEventListener('click', async () => {
             if (confirm("Manually empty the entire recycle bin permanently?")) {
-                const res = await fetch(`${CLOUD_API}?action=get`);
-                const cloudData = await res.json();
-                await fetch(CLOUD_API, {
-                    method: 'POST',
-                    body: JSON.stringify({ action: 'save_trash', data: [] })
-                });
+                await supabase.from('notes').delete().eq('is_trash', true);
                 binModal.style.display = 'none';
                 loadNotes();
             }
